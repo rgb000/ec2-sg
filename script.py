@@ -126,33 +126,53 @@ class GitManager:
             print(f"Error initializing repo at {repo_path}: {e}")
             self.repo = None
 
+    def _get_changed_files(self, target_list):
+        """Returns a subset of target_list that contains actual changes."""
+
+        # Detect Modified (unstaged) files
+        modified = [item.a_path for item in self.repo.index.diff(None)]
+
+        # Detect Staged files (already added but not committed)
+        staged = [item.a_path for item in self.repo.index.diff("HEAD")]
+
+        # Detect Untracked (new) files
+        untracked = self.repo.untracked_files
+
+        all_changes = set(modified + staged + untracked)
+
+        # Return only the files from your target list that have changes
+        return [f for f in target_list if f in all_changes]
+
     def push_updates(self, file_list, commit_message):
-        """Stages files, commits them, and pushes to remote."""
-        if not self.repo:
-            return
+        """Checks, stages, commits, and pushes only the specified files."""
+
+        changed_targets = self._get_changed_files(file_list)
+
+        if not changed_targets:
+            print(f"No changes detected in targeted files: {file_list}")
+            return False
 
         try:
-            # Add
-            self.repo.index.add(file_list)
+            print(f"Syncing changes for: {changed_targets}")
+            # Stage only the changed files from our list
+            self.repo.index.add(changed_targets)
 
             # Commit
-            if self.repo.is_dirty(untracked_files=True):
-                self.repo.index.commit(commit_message)
-                print(f"Committed: {commit_message}")
+            self.repo.index.commit(commit_message)
 
-                # Push
-                origin = self.repo.remote(name=self.remote_name)
-                origin.push(self.branch)
-                print(f"Successfully pushed to {self.remote_name}/{self.branch}")
-            else:
-                print("No changes detected. Nothing to push.")
+            # Push to remote
+            origin = self.repo.remote(name='origin')
+            origin.push()
 
-        except GitCommandError as e:
-            print(f"Git error: {e}")
+            print("Successfully pushed updates to GitHub.")
+            return True
+        except Exception as e:
+            print(f"Error during Git sync: {e}")
+            return False
 
 
 if __name__ == "__main__":
-    my_static_ip = ["178.74.238.169/32"]
+    my_static_ip = ["178.74.238.168/32"]
     cloudflare_ipv4 = "https://www.cloudflare.com/ips-v4"
     yaml_file = "sec-group.yaml"
 
@@ -167,9 +187,9 @@ if __name__ == "__main__":
     print(new_allowed_ips)
 
     # Update instance security group
-    manager = EC2SgManager()
-    target_sg = manager.get_primary_sg_id()
-    manager.replace_port_rules(target_sg, port=80, new_cidr_list=new_allowed_ips)
+    # manager = EC2SgManager()
+    # target_sg = manager.get_primary_sg_id()
+    # manager.replace_port_rules(target_sg, port=80, new_cidr_list=new_allowed_ips)
 
     # Push to git
     current_directory = os.path.dirname(os.path.abspath(__file__))

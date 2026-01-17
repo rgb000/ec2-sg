@@ -38,7 +38,7 @@ The EC2 instance must be attached to an **IAM Instance Profile** with the follow
 Install the required Python libraries on your instance:
 
 ```shell
-pip install boto3 requests GitPython botocore
+pip3 install boto3 requests GitPython botocore PyYAML
 ```
 
 ### 3. Git Configuration
